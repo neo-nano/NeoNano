@@ -1,17 +1,23 @@
+use crate::Document;
+use crate::Row;
 use crate::Terminal;
+use std::env;
 use termion::event::Key;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(Default)]
+pub struct Position {
+    pub x: usize,
+    pub y: usize,
+}
 
 pub struct Editor {
     should_quit: bool,
     terminal: Terminal,
     cursor_position: Position,
-}
-
-pub struct Position {
-    x: usize,
-    y: usize,
+    offset: Position,
+    document: Document,
 }
 
 impl Editor {
@@ -23,9 +29,6 @@ impl Editor {
 
             if self.should_quit {
                 break;
-            } else {
-                self.draw_rows();
-                print!("{}", termion::cursor::Goto(1, 1))
             }
             if let Err(error) = self.process_keypress() {
                 die(error);
@@ -34,12 +37,21 @@ impl Editor {
     }
 
     pub fn default() -> Self {
+        let args: Vec<String> = env::args().collect();
+        let document = if args.len() > 1 {
+            let file_name = &args[1];
+            Document::open(&file_name).unwrap_or_default()
+        } else {
+            Document::default()
+        };
         Self {
             should_quit: false,
             terminal: Terminal::default().expect("Failed to Initialize Terminal"),
-            cursor_position: Position { x: 0, y: 0 },
+            cursor_position: Position::default(),
+            document,
         }
     }
+
     fn draw_welcome_message(&self) {
         let mut welcome_message = format!("Hecto Editor -- version {}", VERSION);
         let width = self.terminal.size().width as usize;
@@ -51,12 +63,21 @@ impl Editor {
         println!("{}\r", welcome_message);
     }
 
+    pub fn draw_row(&self, row: &Row) -> () {
+        let start = 0;
+        let end = self.terminal.size().width as usize;
+        let row = row.render(start, end);
+        println!("{}\r", row);
+    }
+
     fn draw_rows(&self) -> () {
         let height: u16 = self.terminal.size().height;
-        for row in 0..height - 1 {
+        for terminal_row in 0..height {
             Terminal::clear_current_line();
-            if row == height / 3 {
-                self.draw_welcome_message();
+            if let Some(row) = self.document.row(terminal_row as usize) {
+                self.draw_row(row);
+            } else if self.document.is_empty() && terminal_row == height / 3 {
+                self.draw_welcome_message()
             } else {
                 println!("~\r");
             }
@@ -65,13 +86,13 @@ impl Editor {
 
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
         Terminal::cursor_hide();
-        Terminal::cursor_position(0, 0);
+        Terminal::cursor_position(&Position::default());
         if self.should_quit {
             Terminal::clear_screen();
             println!("Good bye \r");
         } else {
             self.draw_rows();
-            Terminal::cursor_position(0, 0);
+            Terminal::cursor_position(&self.cursor_position);
         }
         Terminal::cursor_show();
         Terminal::flush()
@@ -79,10 +100,47 @@ impl Editor {
 
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key = Terminal::read_key()?;
-        if let Key::Ctrl('q') = pressed_key {
-            self.should_quit = true;
+        match pressed_key {
+            Key::Ctrl('q') => self.should_quit = true,
+            Key::Up
+            | Key::Down
+            | Key::Left
+            | Key::Right
+            | Key::PageUp
+            | Key::PageDown
+            | Key::End
+            | Key::Home => self.move_cursor(pressed_key),
+            _ => (),
         }
         Ok(())
+    }
+
+    fn move_cursor(&mut self, key: Key) {
+        let Position { mut x, mut y } = self.cursor_position;
+        let size = self.terminal.size();
+        let height = size.height.saturating_sub(1) as usize;
+        let width = size.width.saturating_sub(1) as usize;
+
+        match key {
+            Key::PageUp => y = 0,
+            Key::PageDown => y = height,
+            Key::Home => x = 0,
+            Key::End => x = width,
+            Key::Up => y = y.saturating_sub(1),
+            Key::Down => {
+                if y < height {
+                    y = y.saturating_add(1)
+                }
+            }
+            Key::Left => x = x.saturating_sub(1),
+            Key::Right => {
+                if x < width {
+                    x = x.saturating_add(1)
+                }
+            }
+            _ => (),
+        }
+        self.cursor_position = Position { x, y }
     }
 }
 
