@@ -9,4 +9,3 @@ authors = ["Kota Toda <neonano@rqda.wtf>"]
 [dependencies]
 termion = "2"
 unicode-segmentation = "1"
-tree-sitter = "0.20.10"
