@@ -202,19 +202,16 @@ impl Row {
     ) -> bool {
         if opts.characters() && c == '\'' {
             if let Some(next_char) = chars.get(index.saturating_add(1)) {
-                let closing_index = if *next_char == '\\' {
-                    index.saturating_add(3)
-                } else {
-                    index.saturating_add(2)
-                };
+                let char_len = if *next_char == '\\' { 3 } else { 2 };
+                let closing_index = index.saturating_add(char_len);
                 if let Some(closing_char) = chars.get(closing_index) {
                     if *closing_char == '\'' {
-                        for _ in 0..closing_index.saturating_sub(*index) {
+                        for _ in 0..char_len.saturating_add(1) {
                             self.highlighting.push(highlighting::Type::Character);
                             *index += 1;
                         }
+                        return true;
                     }
-                    return true;
                 }
             }
         }
@@ -325,6 +322,7 @@ mod tests {
         let filetype = FileType::from("test.rs");
         row.highlight(filetype.highlighting_options(), None);
         for i in 0..expected.len() {
+            println!("'{:?}' == '{:?}'", row.highlighting[i], expected[i]);
             assert_eq!(row.highlighting[i], expected[i]);
         }
     }
@@ -369,6 +367,29 @@ mod tests {
             highlighting::Type::Comment,
             highlighting::Type::Comment,
             highlighting::Type::Comment,
+        ];
+
+        highlight(hl_content, &hl_expected);
+    }
+    #[test]
+    fn char_highlight() {
+        let hl_content = "'@'";
+        let hl_expected = [
+            highlighting::Type::Character,
+            highlighting::Type::Character,
+            highlighting::Type::Character,
+        ];
+
+        highlight(hl_content, &hl_expected);
+    }
+    #[test]
+    fn char_backslash_highlight() {
+        let hl_content = "'\\a'";
+        let hl_expected = [
+            highlighting::Type::Character,
+            highlighting::Type::Character,
+            highlighting::Type::Character,
+            highlighting::Type::Character,
         ];
 
         highlight(hl_content, &hl_expected);
