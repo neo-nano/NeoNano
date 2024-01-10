@@ -1,10 +1,13 @@
-use crate::Document;
-use crate::Row;
-use crate::Terminal;
 use std::env;
+use std::fmt::format;
 use std::time::{Duration, Instant};
 use termion::color;
 use termion::event::Key;
+use unicode_segmentation::UnicodeSegmentation;
+
+use crate::Document;
+use crate::Row;
+use crate::Terminal;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
@@ -90,7 +93,7 @@ impl Editor {
         }
     }
 
-    fn draw_welcome_message(&self) {
+    fn draw_welcome_message(&self) -> Vec<String> {
         let mut welcome_message = format!("Hecto Editor -- version {}", VERSION);
         let width = self.terminal.size().width as usize;
         let len = welcome_message.len();
@@ -98,31 +101,58 @@ impl Editor {
         let spaces = " ".repeat(padding);
         welcome_message = format!("~{}{}", spaces, welcome_message);
         welcome_message.truncate(width);
-        println!("{}\r", welcome_message);
+        welcome_message.as_bytes().iter().map(|&x| x.to_string()).collect()
     }
 
-    pub fn draw_row(&self, row: &Row) {
+    pub fn draw_row(&self, row: &Row) -> Vec<String> {
         let width = self.terminal.size().width as usize;
         let start = self.offset.x;
         let end = self.offset.x.saturating_add(width);
         let row = row.render(start, end);
-        println!("{}\r", row);
+        row
     }
 
     fn draw_rows(&self) {
         let height = self.terminal.size().height;
         for terminal_row in 0..height {
+            let mut row_array: Vec<String>;
             Terminal::clear_current_line();
             if let Some(row) = self
                 .document
                 .row(self.offset.y.saturating_add(terminal_row as usize))
             {
-                self.draw_row(row);
+                row_array = self.draw_row(row);
             } else if self.document.is_empty() && terminal_row == height / 3 {
-                self.draw_welcome_message()
+                row_array = self.draw_welcome_message()
             } else {
-                println!("~\r");
+                row_array = vec![String::from("~"), String::from("\r")];
             }
+
+            for floating_idx in 0..self.document.floating_len() {
+                if let Some(floating) = self.document.floating(floating_idx) {
+                    let x = floating.get_pos().x;
+                    let y = floating.get_pos().y;
+                    let f_height = floating.get_height();
+                    let f_width = floating.get_width();
+                    let (r, g, b) = floating.get_bg();
+                    let floating_str = format!("{}{:width$}{}", color::Bg(color::Rgb(r, g, b)), "wtf?", color::Bg(color::Reset), width = f_width);
+                    if y <= (terminal_row as usize) && (terminal_row as usize) < y.saturating_add(f_height) {
+                        if x > row_array.len() {
+                            let padding_size = x.saturating_sub(row_array.len());
+                            for _ in 0..padding_size {
+                                row_array.push(String::from(" "));
+                            }
+                            row_array.push(floating_str);
+                        } else {
+                            let str_before = &row_array[..x];
+                            let str_after = &row_array[x + f_width..];
+                            // row_array = format!("{str_before}{floating_str}{str_after}");
+                            row_array.push(str_before.);
+                        }
+                    }
+                }
+            }
+            println!("{}\r", row_array.concat());
         }
     }
 
@@ -347,8 +377,8 @@ impl Editor {
     }
 
     fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, std::io::Error>
-    where
-        C: FnMut(&mut Self, Key, &String),
+        where
+            C: FnMut(&mut Self, Key, &String),
     {
         let mut result = String::new();
         loop {

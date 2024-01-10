@@ -1,10 +1,10 @@
 use std::fs;
 use std::io::{Error, Write};
 
-use crate::editor::SearchDirection;
-
-use crate::Row;
 use crate::{FileType, Position};
+use crate::editor::SearchDirection;
+use crate::floating_item::FloatingItem;
+use crate::Row;
 
 #[derive(Default)]
 pub struct Document {
@@ -12,6 +12,7 @@ pub struct Document {
     pub file_name: Option<String>,
     dirty: bool,
     file_type: FileType,
+    floatings: Vec<FloatingItem>,
 }
 
 impl Document {
@@ -29,6 +30,7 @@ impl Document {
             file_name: Some(file_name.to_string()),
             dirty: false,
             file_type: FileType::from(file_name),
+            floatings: vec![FloatingItem::create(Position { x: 200, y: 4 }, 18, 2)],
         })
     }
 
@@ -42,6 +44,14 @@ impl Document {
 
     pub fn len(&self) -> usize {
         self.rows.len()
+    }
+
+    pub fn floating_len(&self) -> usize {
+        self.floatings.len()
+    }
+
+    pub fn floating(&self, index: usize) -> Option<&FloatingItem> {
+        self.floatings.get(index)
     }
 
     fn insert_newline(&mut self, at: &Position) {
