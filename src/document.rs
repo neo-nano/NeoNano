@@ -1,10 +1,10 @@
 use std::fs;
 use std::io::{Error, Write};
 
-use crate::{FileType, Position};
 use crate::editor::SearchDirection;
 use crate::floating_item::FloatingItem;
 use crate::Row;
+use crate::{FileType, Position};
 
 #[derive(Default)]
 pub struct Document {
@@ -16,7 +16,7 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn open(file_name: &str) -> Result<Self, std::io::Error> {
+    pub fn open(file_name: &str) -> Result<Self, Error> {
         let contents = fs::read_to_string(file_name)?;
         let file_type = FileType::from(file_name);
         let mut rows: Vec<Row> = Vec::new();
@@ -30,7 +30,7 @@ impl Document {
             file_name: Some(file_name.to_string()),
             dirty: false,
             file_type: FileType::from(file_name),
-            floatings: vec![FloatingItem::create(Position { x: 200, y: 4 }, 18, 2)],
+            floatings: vec![FloatingItem::create(Position { x: 10, y: 4 }, 7, 2)],
         })
     }
 

@@ -1,6 +1,6 @@
 use std::env;
-use std::fmt::format;
 use std::time::{Duration, Instant};
+
 use termion::color;
 use termion::event::Key;
 use unicode_segmentation::UnicodeSegmentation;
@@ -101,7 +101,10 @@ impl Editor {
         let spaces = " ".repeat(padding);
         welcome_message = format!("~{}{}", spaces, welcome_message);
         welcome_message.truncate(width);
-        welcome_message.as_bytes().iter().map(|&x| x.to_string()).collect()
+        welcome_message
+            .graphemes(true)
+            .map(String::from)
+            .collect::<Vec<String>>()
     }
 
     pub fn draw_row(&self, row: &Row) -> Vec<String> {
@@ -123,36 +126,17 @@ impl Editor {
             {
                 row_array = self.draw_row(row);
             } else if self.document.is_empty() && terminal_row == height / 3 {
-                row_array = self.draw_welcome_message()
+                row_array = self.draw_welcome_message();
             } else {
                 row_array = vec![String::from("~"), String::from("\r")];
             }
-
             for floating_idx in 0..self.document.floating_len() {
                 if let Some(floating) = self.document.floating(floating_idx) {
-                    let x = floating.get_pos().x;
-                    let y = floating.get_pos().y;
-                    let f_height = floating.get_height();
-                    let f_width = floating.get_width();
-                    let (r, g, b) = floating.get_bg();
-                    let floating_str = format!("{}{:width$}{}", color::Bg(color::Rgb(r, g, b)), "wtf?", color::Bg(color::Reset), width = f_width);
-                    if y <= (terminal_row as usize) && (terminal_row as usize) < y.saturating_add(f_height) {
-                        if x > row_array.len() {
-                            let padding_size = x.saturating_sub(row_array.len());
-                            for _ in 0..padding_size {
-                                row_array.push(String::from(" "));
-                            }
-                            row_array.push(floating_str);
-                        } else {
-                            let str_before = &row_array[..x];
-                            let str_after = &row_array[x + f_width..];
-                            // row_array = format!("{str_before}{floating_str}{str_after}");
-                            row_array.push(str_before.);
-                        }
-                    }
+                    row_array = floating.render(&row_array, terminal_row as usize);
                 }
             }
-            println!("{}\r", row_array.concat());
+
+            println!("{}{}\r", color::Fg(color::Reset), row_array.concat());
         }
     }
 
@@ -377,8 +361,8 @@ impl Editor {
     }
 
     fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, std::io::Error>
-        where
-            C: FnMut(&mut Self, Key, &String),
+    where
+        C: FnMut(&mut Self, Key, &String),
     {
         let mut result = String::new();
         loop {

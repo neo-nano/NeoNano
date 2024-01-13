@@ -44,8 +44,7 @@ impl Row {
                     .unwrap_or(&highlighting::Type::None);
                 if highlighting_type != current_highlighting {
                     current_highlighting = highlighting_type;
-                    let start_highlight =
-                        format!("{}", color::Fg(highlighting_type.to_color()));
+                    let start_highlight = format!("{}", color::Fg(highlighting_type.to_color()));
                     current_str.push_str(start_highlight.as_str());
                 }
 
@@ -58,7 +57,7 @@ impl Row {
             }
         }
 
-        let end_highlight = format!("{}", termion::color::Fg(color::Reset));
+        let end_highlight = format!("{}", color::Fg(color::Reset));
         result.push(end_highlight);
         result
     }
@@ -164,7 +163,7 @@ impl Row {
         };
         if let Some(matching_byte_index) = matching_byte_index {
             for (graphme_index, (byte_index, _)) in
-            sub_string[..].grapheme_indices(true).enumerate()
+                sub_string[..].grapheme_indices(true).enumerate()
             {
                 if matching_byte_index == byte_index {
                     return Some(start + graphme_index);
@@ -320,7 +319,7 @@ impl Row {
 
 #[cfg(test)]
 mod tests {
-    use crate::{FileType, highlighting, Row};
+    use crate::{highlighting, FileType, Row};
 
     fn highlight(content: &str, expected: &[highlighting::Type]) {
         let mut row = Row::from(content);
