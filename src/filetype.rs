@@ -3,12 +3,19 @@ pub struct FileType {
     hl_opts: HighlightingOptions,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone)]
 pub struct HighlightingOptions {
-    numbers: bool,
-    strings: bool,
-    characters: bool,
-    comments: bool,
+    hl_query: Option<&'static str>,
+    inj_query: Option<&'static str>,
+}
+
+impl HighlightingOptions {
+    pub fn get_hl_query(&self) -> Option<&str> {
+        self.hl_query
+    }
+    pub fn get_inj_query(&self) -> Option<&str> {
+        self.inj_query
+    }
 }
 
 impl Default for FileType {
@@ -26,39 +33,19 @@ impl FileType {
     }
 
     pub fn highlighting_options(&self) -> HighlightingOptions {
-        self.hl_opts
+        self.hl_opts.clone()
     }
 
-    pub fn from(file_name: &str) -> Self {
+    pub fn from(file_name: &str) -> Option<Self> {
         if file_name.ends_with(".rs") {
-            return Self {
+            return Some(Self {
                 name: String::from("Rust"),
                 hl_opts: HighlightingOptions {
-                    numbers: true,
-                    strings: true,
-                    characters: true,
-                    comments: true,
+                    hl_query: Some(tree_sitter_rust::HIGHLIGHT_QUERY),
+                    inj_query: Some(tree_sitter_rust::INJECTIONS_QUERY),
                 },
-            };
+            });
         }
-        Self::default()
-    }
-}
-
-impl HighlightingOptions {
-    pub fn numbers(self) -> bool {
-        self.numbers
-    }
-
-    pub fn strings(self) -> bool {
-        self.strings
-    }
-
-    pub fn characters(self) -> bool {
-        self.characters
-    }
-
-    pub fn comments(self) -> bool {
-        self.comments
+        None
     }
 }

@@ -427,7 +427,7 @@ impl Editor {
                 } else if moved {
                     editor.move_cursor(Key::Left);
                 }
-                editor.document.highlight(Some(query.as_str()));
+                // editor.document.highlight(Some(query.as_str()));
             })
             .unwrap_or(None);
 
@@ -435,7 +435,7 @@ impl Editor {
             self.cursor_position = prev_position;
             self.scroll();
         }
-        self.document.highlight(None);
+        // self.document.highlight(None);
     }
 }
 

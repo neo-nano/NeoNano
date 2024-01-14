@@ -3,6 +3,7 @@ use std::io::{Error, Write};
 
 use crate::editor::SearchDirection;
 use crate::floating_item::FloatingItem;
+use crate::highlighting::Highlight;
 use crate::Row;
 use crate::{FileType, Position};
 
@@ -18,20 +19,20 @@ pub struct Document {
 impl Document {
     pub fn open(file_name: &str) -> Result<Self, Error> {
         let contents = fs::read_to_string(file_name)?;
-        let file_type = FileType::from(file_name);
+        let file_type = FileType::from(file_name).unwrap_or_default();
         let mut rows: Vec<Row> = Vec::new();
         for value in contents.lines() {
-            let mut row = Row::from(value);
-            row.highlight(file_type.highlighting_options(), None);
-            rows.push(row);
+            rows.push(Row::from(value));
         }
-        Ok(Self {
+        let mut res = Self {
             rows,
-            file_name: Some(file_name.to_string()),
+            file_name: Some(file_name.to_owned()),
             dirty: false,
-            file_type: FileType::from(file_name),
+            file_type,
             floatings: vec![FloatingItem::create(Position { x: 10, y: 4 }, 7, 2)],
-        })
+        };
+        res.highlight();
+        Ok(res)
     }
 
     pub fn row(&self, index: usize) -> Option<&Row> {
@@ -63,8 +64,8 @@ impl Document {
         // let new_row = self.rows.get_mut(at.y).unwrap().split(at.x);
         let current_row = &mut self.rows[at.y];
         let mut new_row = current_row.split(at.x);
-        current_row.highlight(self.file_type.highlighting_options(), None);
-        new_row.highlight(self.file_type.highlighting_options(), None);
+        // current_row.highlight(self.file_type.highlighting_options(), None);
+        // new_row.highlight(self.file_type.highlighting_options(), None);
         self.rows.insert(at.y + 1, new_row);
     }
 
@@ -82,12 +83,12 @@ impl Document {
         if at.y == self.len() {
             let mut row = Row::default();
             row.insert(0, c);
-            row.highlight(self.file_type.highlighting_options(), None);
             self.rows.push(row);
+            // self.highlight();
         } else {
             let row = self.rows.get_mut(at.y).unwrap();
             row.insert(at.x, c);
-            row.highlight(self.file_type.highlighting_options(), None);
+            // self.highlight();
         }
     }
 
@@ -103,22 +104,22 @@ impl Document {
             let next_row = self.rows.remove(at.y + 1);
             let row = self.rows.get_mut(at.y).unwrap();
             row.append(&next_row);
-            row.highlight(self.file_type.highlighting_options(), None);
+            // row.highlight(self.file_type.highlighting_options(), None);
         } else {
             let row = self.rows.get_mut(at.y).unwrap();
             row.delete(at.x);
-            row.highlight(self.file_type.highlighting_options(), None);
+            // row.highlight(self.file_type.highlighting_options(), None);
         }
     }
 
     pub fn save(&mut self) -> Result<(), Error> {
         if let Some(file_name) = &self.file_name {
             let mut file = fs::File::create(file_name)?;
-            self.file_type = FileType::from(file_name);
+            self.file_type = FileType::from(file_name).unwrap_or(FileType::default());
             for row in &mut self.rows {
                 file.write_all(row.as_bytes())?;
                 file.write_all(b"\n")?;
-                row.highlight(self.file_type.highlighting_options(), None);
+                // row.highlight(self.file_type.highlighting_options(), None);
             }
             self.dirty = false;
         }
@@ -170,9 +171,37 @@ impl Document {
         self.file_type.name()
     }
 
-    pub fn highlight(&mut self, word: Option<&str>) {
-        for row in &mut self.rows {
-            row.highlight(self.file_type.highlighting_options(), word);
+    pub fn highlight(&mut self) {
+        let chars: Vec<Vec<u8>> = self.rows.iter().map(|r| r.as_bytes().to_vec()).collect();
+        let chars = chars.into_iter().flatten().collect::<Vec<u8>>();
+        let chars: &[u8] = chars.as_slice();
+
+        let hl_opt = self.file_type.highlighting_options();
+        if !hl_opt.get_hl_query().is_some() || !hl_opt.get_inj_query().is_some() {
+            return ();
+        }
+        let mut highlighter = Highlight::new(
+            tree_sitter_rust::language(),
+            hl_opt.get_hl_query().unwrap(),
+            hl_opt.get_inj_query().unwrap(),
+        );
+
+        match highlighter.highlight(chars) {
+            Ok(highlight_vec) => {
+                let mut highlight_idx: usize = 0;
+                for row in self.rows.iter_mut() {
+                    let row_len = row.as_bytes().len();
+                    if let Some(new_hl) =
+                        highlight_vec.get(highlight_idx..highlight_idx.saturating_add(row_len))
+                    {
+                        row.set_highlight(new_hl.to_vec());
+                    }
+                    highlight_idx += row.as_bytes().len();
+                }
+            }
+            Err(e) => {
+                return ();
+            }
         }
     }
 }

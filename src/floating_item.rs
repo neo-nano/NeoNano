@@ -1,7 +1,6 @@
 use termion::color;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::terminal::Size;
 use crate::Position;
 
 #[derive(Default)]
