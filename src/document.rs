@@ -61,12 +61,10 @@ impl Document {
             return;
         }
 
-        // let new_row = self.rows.get_mut(at.y).unwrap().split(at.x);
         let current_row = &mut self.rows[at.y];
-        let mut new_row = current_row.split(at.x);
-        // current_row.highlight(self.file_type.highlighting_options(), None);
-        // new_row.highlight(self.file_type.highlighting_options(), None);
+        let new_row = current_row.split(at.x);
         self.rows.insert(at.y + 1, new_row);
+        self.highlight();
     }
 
     pub fn insert(&mut self, at: &Position, c: char) {
@@ -84,12 +82,11 @@ impl Document {
             let mut row = Row::default();
             row.insert(0, c);
             self.rows.push(row);
-            // self.highlight();
         } else {
             let row = self.rows.get_mut(at.y).unwrap();
             row.insert(at.x, c);
-            // self.highlight();
         }
+        self.highlight();
     }
 
     pub fn delete(&mut self, at: &Position) {
@@ -104,12 +101,11 @@ impl Document {
             let next_row = self.rows.remove(at.y + 1);
             let row = self.rows.get_mut(at.y).unwrap();
             row.append(&next_row);
-            // row.highlight(self.file_type.highlighting_options(), None);
         } else {
             let row = self.rows.get_mut(at.y).unwrap();
             row.delete(at.x);
-            // row.highlight(self.file_type.highlighting_options(), None);
         }
+        self.highlight();
     }
 
     pub fn save(&mut self) -> Result<(), Error> {
@@ -119,8 +115,8 @@ impl Document {
             for row in &mut self.rows {
                 file.write_all(row.as_bytes())?;
                 file.write_all(b"\n")?;
-                // row.highlight(self.file_type.highlighting_options(), None);
             }
+            self.highlight();
             self.dirty = false;
         }
         Ok(())
@@ -172,35 +168,41 @@ impl Document {
     }
 
     pub fn highlight(&mut self) {
-        let chars: Vec<Vec<u8>> = self.rows.iter().map(|r| r.as_bytes().to_vec()).collect();
+        let chars: Vec<Vec<u8>> = self
+            .rows
+            .iter()
+            .map(|r| {
+                let mut res = r.as_bytes().to_vec();
+                res.push(b'\r');
+                res.push(b'\n');
+                res
+            })
+            .collect();
         let chars = chars.into_iter().flatten().collect::<Vec<u8>>();
         let chars: &[u8] = chars.as_slice();
 
         let hl_opt = self.file_type.highlighting_options();
         if !hl_opt.get_hl_query().is_some() || !hl_opt.get_inj_query().is_some() {
-            return ();
+            return;
         }
-        let mut highlighter = Highlight::new(
-            tree_sitter_rust::language(),
+        let highlighter = Highlight::new(
+            hl_opt.get_lang().unwrap(),
             hl_opt.get_hl_query().unwrap(),
             hl_opt.get_inj_query().unwrap(),
         );
 
-        match highlighter.highlight(chars) {
-            Ok(highlight_vec) => {
+        if let Ok(mut highlighter) = highlighter {
+            if let Ok(highlight_vec) = highlighter.highlight(chars) {
                 let mut highlight_idx: usize = 0;
-                for row in self.rows.iter_mut() {
+                for row in &mut self.rows {
                     let row_len = row.as_bytes().len();
                     if let Some(new_hl) =
                         highlight_vec.get(highlight_idx..highlight_idx.saturating_add(row_len))
                     {
                         row.set_highlight(new_hl.to_vec());
                     }
-                    highlight_idx += row.as_bytes().len();
+                    highlight_idx += row.as_bytes().len() + 2;
                 }
-            }
-            Err(e) => {
-                return ();
             }
         }
     }

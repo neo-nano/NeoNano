@@ -3,6 +3,8 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::Position;
 
+const TXT_COLOR: color::Rgb = color::Rgb(76, 79, 105);
+
 #[derive(Default)]
 pub struct FloatingItem {
     pos: Position,
@@ -63,9 +65,19 @@ impl FloatingItem {
         if self.width <= floating_str_len {
             for (i, v) in floating_str.graphemes(true).enumerate() {
                 if i == 0 {
-                    floating_vec.push(format!("{}{}", color::Bg(color::Rgb(r, g, b)), v));
+                    floating_vec.push(format!(
+                        "{}{}{}",
+                        color::Fg(TXT_COLOR),
+                        color::Bg(color::Rgb(r, g, b)),
+                        v
+                    ));
                 } else if floating_str_len.saturating_sub(1) == i {
-                    floating_vec.push(format!("{}{}", v, color::Bg(color::Reset)));
+                    floating_vec.push(format!(
+                        "{}{}{}",
+                        v,
+                        color::Fg(color::Reset),
+                        color::Bg(color::Reset)
+                    ));
                 } else {
                     floating_vec.push(String::from(v));
                 }
@@ -73,7 +85,12 @@ impl FloatingItem {
         } else {
             for (i, v) in floating_str.graphemes(true).enumerate() {
                 if i == 0 {
-                    floating_vec.push(format!("{}{}", color::Bg(color::Rgb(r, g, b)), v));
+                    floating_vec.push(format!(
+                        "{}{}{}",
+                        color::Fg(TXT_COLOR),
+                        color::Bg(color::Rgb(r, g, b)),
+                        v
+                    ));
                 } else {
                     floating_vec.push(String::from(v));
                 }
@@ -81,7 +98,11 @@ impl FloatingItem {
             let padding_size = self.width.saturating_sub(floating_str_len);
             for i in 0..padding_size {
                 if i == padding_size.saturating_sub(1) {
-                    floating_vec.push(format!(" {}", color::Bg(color::Reset)));
+                    floating_vec.push(format!(
+                        " {}{}",
+                        color::Fg(color::Reset),
+                        color::Bg(color::Reset)
+                    ));
                 } else {
                     floating_vec.push(String::from(" "));
                 }

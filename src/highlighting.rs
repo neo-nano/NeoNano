@@ -63,15 +63,17 @@ pub struct Highlight {
 }
 
 impl Highlight {
-    pub fn new(lang: Language, hl_query: &str, inj_query: &str) -> Self {
+    pub fn new(lang: Language, hl_query: &str, inj_query: &str) -> Result<Self, String> {
         let highlighter = Highlighter::new();
-        let mut config = HighlightConfiguration::new(lang, hl_query, inj_query, "")
-            .expect("Failed to Highlight");
-        config.configure(&HIGHLIGHTS.map(|x| x.0));
-        Self {
-            highlighter,
-            config,
+        let config = HighlightConfiguration::new(lang, hl_query, inj_query, "");
+        if let Ok(mut config) = config {
+            config.configure(&HIGHLIGHTS.map(|x| x.0));
+            return Ok(Self {
+                highlighter,
+                config,
+            });
         }
+        Err(String::from("Failed to initialize config"))
     }
 
     pub fn highlight(&mut self, code: &[u8]) -> Result<Vec<Type>, Error> {
@@ -83,6 +85,9 @@ impl Highlight {
         {
             match event.unwrap() {
                 HighlightEvent::Source { start, end } => {
+                    if current_hl == Type::CarriageReturn {
+                        continue;
+                    }
                     for _ in start..end {
                         res.push(current_hl.clone())
                     }
