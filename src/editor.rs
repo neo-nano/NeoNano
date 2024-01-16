@@ -184,7 +184,11 @@ impl Editor {
             }
             Key::Ctrl('s') => self.save(),
             Key::Ctrl('f') => self.search(),
-            Key::Delete => self.document.delete(&self.cursor_position),
+            Key::Alt('m') => self.hover(),
+            Key::Delete => {
+                self.document.clear_floating();
+                self.document.delete(&self.cursor_position);
+            }
             Key::Backspace => {
                 if self.cursor_position.x > 0 || self.cursor_position.y > 0 {
                     self.move_cursor(Key::Left);
@@ -198,7 +202,9 @@ impl Editor {
             | Key::PageUp
             | Key::PageDown
             | Key::End
-            | Key::Home => self.move_cursor(pressed_key),
+            | Key::Home => {
+                self.move_cursor(pressed_key);
+            }
             _ => (),
         }
         self.scroll();
@@ -436,6 +442,11 @@ impl Editor {
             self.scroll();
         }
         // self.document.highlight(None);
+    }
+
+    fn hover(&mut self) {
+        self.document
+            .hover(self.cursor_position.x as u32, self.cursor_position.y as u32);
     }
 }
 

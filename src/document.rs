@@ -1,9 +1,15 @@
+use std::env::current_dir;
 use std::fs;
 use std::io::{Error, Write};
+use std::path::PathBuf;
+
+use lsp_types::HoverContents;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::editor::SearchDirection;
 use crate::floating_item::FloatingItem;
 use crate::highlighting::Highlight;
+use crate::lsp::LspConnector;
 use crate::Row;
 use crate::{FileType, Position};
 
@@ -14,12 +20,27 @@ pub struct Document {
     dirty: bool,
     file_type: FileType,
     floatings: Vec<FloatingItem>,
+    lsp: Option<LspConnector>,
 }
 
 impl Document {
     pub fn open(file_name: &str) -> Result<Self, Error> {
         let contents = fs::read_to_string(file_name)?;
         let file_type = FileType::from(file_name).unwrap_or_default();
+        let lsp = match LspConnector::new(
+            file_type.lsp_name().unwrap_or_default(),
+            file_type.lsp_args().unwrap_or_default(),
+            file_type.name(),
+            current_dir()
+                .unwrap()
+                .join(PathBuf::from(file_name).canonicalize().unwrap())
+                .into_os_string()
+                .into_string()
+                .unwrap(),
+        ) {
+            Ok(lsp) => Some(lsp),
+            Err(_) => None,
+        };
         let mut rows: Vec<Row> = Vec::new();
         for value in contents.lines() {
             rows.push(Row::from(value));
@@ -29,7 +50,8 @@ impl Document {
             file_name: Some(file_name.to_owned()),
             dirty: false,
             file_type,
-            floatings: vec![FloatingItem::create(Position { x: 10, y: 4 }, 7, 2)],
+            floatings: vec![FloatingItem::new(Position { x: 10, y: 4 }, 7, 2, vec![])],
+            lsp,
         };
         res.highlight();
         Ok(res)
@@ -202,6 +224,48 @@ impl Document {
                         row.set_highlight(new_hl.to_vec());
                     }
                     highlight_idx += row.as_bytes().len() + 2;
+                }
+            }
+        }
+    }
+
+    pub fn clear_floating(&mut self) {
+        self.floatings.clear();
+    }
+
+    pub fn hover(&mut self, x: u32, y: u32) {
+        if let Some(lsp) = self.lsp.as_mut() {
+            if !lsp.is_initialized() {
+                let a = self.rows.iter().map(|r| r.as_str()).collect::<Vec<&str>>();
+                lsp.init(a.join("\r\n"));
+            }
+
+            if let Some(hover) = lsp.hover(y, x) {
+                match hover.contents {
+                    HoverContents::Scalar(_) => (),
+                    HoverContents::Markup(content) => {
+                        let txt = content.value;
+                        self.floatings.clear();
+                        let width = txt
+                            .lines()
+                            .map(|x| x.graphemes(true).count())
+                            .max()
+                            .unwrap_or(0);
+                        self.floatings.append(&mut vec![FloatingItem::new(
+                            Position {
+                                x: x as usize,
+                                y: y.saturating_add(1) as usize,
+                            },
+                            width,
+                            txt.lines().filter(|x| !x.is_empty()).count(),
+                            txt.lines()
+                                .map(ToString::to_string)
+                                .filter(|x| !x.is_empty())
+                                .collect::<Vec<String>>(),
+                        )]);
+                    }
+                    HoverContents::Array(_) => (),
+                    // TODO
                 }
             }
         }

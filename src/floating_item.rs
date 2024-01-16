@@ -15,12 +15,12 @@ pub struct FloatingItem {
 }
 
 impl FloatingItem {
-    pub fn create(pos: Position, width: usize, height: usize) -> Self {
+    pub fn new(pos: Position, width: usize, height: usize, msg: Vec<String>) -> Self {
         Self {
             pos,
             width,
             height,
-            msg: vec![String::from("nop"), String::from("nah")],
+            msg: msg,
             bg_color: (0, 0, 0),
         }
     }

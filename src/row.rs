@@ -3,9 +3,7 @@ use std::cmp;
 use termion::color;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::highlighting;
 use crate::highlighting::Type;
-use crate::HighlightingOptions;
 use crate::SearchDirection;
 
 #[derive(Default)]
