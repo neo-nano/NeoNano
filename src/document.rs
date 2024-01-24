@@ -1,8 +1,9 @@
 use std::env::current_dir;
 use std::fs;
-use std::io::{Error, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
+use anyhow::Result;
 use lsp_types::HoverContents;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -21,22 +22,36 @@ pub struct Document {
     file_type: FileType,
     floatings: Vec<FloatingItem>,
     lsp: Option<LspConnector>,
+    highlighter: Option<Highlight>,
 }
 
 impl Document {
-    pub fn open(file_name: &str) -> Result<Self, Error> {
+    pub fn open(file_name: &str) -> Result<Self> {
         let contents = fs::read_to_string(file_name)?;
         let file_type = FileType::from(file_name).unwrap_or_default();
+        let hl_opt = file_type.highlighting_options();
+        let highlighter = match Highlight::new(
+            hl_opt.get_lang().unwrap(),
+            hl_opt.get_hl_query().unwrap(),
+            hl_opt.get_inj_query().unwrap(),
+        ) {
+            Ok(highlighter) => Some(highlighter),
+            Err(_) => None,
+        };
         let lsp = match LspConnector::new(
             file_type.lsp_name().unwrap_or_default(),
             file_type.lsp_args().unwrap_or_default(),
             file_type.name(),
             current_dir()
-                .unwrap()
-                .join(PathBuf::from(file_name).canonicalize().unwrap())
+                .unwrap_or(PathBuf::new())
+                .join(
+                    PathBuf::from(file_name)
+                        .canonicalize()
+                        .unwrap_or(PathBuf::new()),
+                )
                 .into_os_string()
                 .into_string()
-                .unwrap(),
+                .unwrap_or(String::from("Unknown File")),
         ) {
             Ok(lsp) => Some(lsp),
             Err(_) => None,
@@ -50,8 +65,9 @@ impl Document {
             file_name: Some(file_name.to_owned()),
             dirty: false,
             file_type,
-            floatings: vec![FloatingItem::new(Position { x: 10, y: 4 }, 7, 2, vec![])],
+            floatings: vec![],
             lsp,
+            highlighter,
         };
         res.highlight();
         Ok(res)
@@ -130,7 +146,7 @@ impl Document {
         self.highlight();
     }
 
-    pub fn save(&mut self) -> Result<(), Error> {
+    pub fn save(&mut self) -> Result<()> {
         if let Some(file_name) = &self.file_name {
             let mut file = fs::File::create(file_name)?;
             self.file_type = FileType::from(file_name).unwrap_or(FileType::default());
@@ -207,13 +223,7 @@ impl Document {
         if !hl_opt.get_hl_query().is_some() || !hl_opt.get_inj_query().is_some() {
             return;
         }
-        let highlighter = Highlight::new(
-            hl_opt.get_lang().unwrap(),
-            hl_opt.get_hl_query().unwrap(),
-            hl_opt.get_inj_query().unwrap(),
-        );
-
-        if let Ok(mut highlighter) = highlighter {
+        if let Some(highlighter) = self.highlighter.as_mut() {
             if let Ok(highlight_vec) = highlighter.highlight(chars) {
                 let mut highlight_idx: usize = 0;
                 for row in &mut self.rows {
@@ -223,7 +233,7 @@ impl Document {
                     {
                         row.set_highlight(new_hl.to_vec());
                     }
-                    highlight_idx += row.as_bytes().len() + 2;
+                    highlight_idx += row.as_bytes().len().saturating_add(2);
                 }
             }
         }

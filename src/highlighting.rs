@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use termion::color;
 use tree_sitter::Language;
 use tree_sitter_highlight::{Error, HighlightConfiguration};
@@ -63,7 +64,7 @@ pub struct Highlight {
 }
 
 impl Highlight {
-    pub fn new(lang: Language, hl_query: &str, inj_query: &str) -> Result<Self, String> {
+    pub fn new(lang: Language, hl_query: &str, inj_query: &str) -> Result<Self> {
         let highlighter = Highlighter::new();
         let config = HighlightConfiguration::new(lang, hl_query, inj_query, "");
         if let Ok(mut config) = config {
@@ -73,10 +74,10 @@ impl Highlight {
                 config,
             });
         }
-        Err(String::from("Failed to initialize config"))
+        Err(anyhow!("Failed to initialize config"))
     }
 
-    pub fn highlight(&mut self, code: &[u8]) -> Result<Vec<Type>, Error> {
+    pub fn highlight(&mut self, code: &[u8]) -> Result<Vec<Type>> {
         let mut res: Vec<Type> = vec![];
         let mut current_hl: Type = Type::None;
         for event in self

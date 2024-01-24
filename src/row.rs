@@ -29,7 +29,9 @@ impl Row {
         let start = cmp::min(start, end);
         let mut result: Vec<String> = Vec::new();
         let mut current_highlighting = &Type::None;
-        for (index, graphme) in self.string[..]
+        for (index, graphme) in self
+            .string
+            .as_str()
             .graphemes(true)
             .enumerate()
             .skip(start)

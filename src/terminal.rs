@@ -1,5 +1,6 @@
 use crate::Position;
-use std::io::{self, stdout, Write};
+use anyhow::{anyhow, Result};
+use std::io::{self, stdout, Stdout, Write};
 use termion::color;
 use termion::event::Key;
 use termion::input::TermRead;
@@ -14,11 +15,11 @@ pub struct Size {
 
 pub struct Terminal {
     size: Size,
-    _stdout: RawTerminal<std::io::Stdout>,
+    _stdout: RawTerminal<Stdout>,
 }
 
 impl Terminal {
-    pub fn default() -> Result<Self, std::io::Error> {
+    pub fn default() -> Result<Self> {
         let size = termion::terminal_size()?;
         Ok(Self {
             size: Size {
@@ -46,11 +47,14 @@ impl Terminal {
         print!("{}", termion::cursor::Goto(x, y));
     }
 
-    pub fn flush() -> Result<(), std::io::Error> {
-        io::stdout().flush()
+    pub fn flush() -> Result<()> {
+        match stdout().flush() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(anyhow!("{}", e)),
+        }
     }
 
-    pub fn read_key() -> Result<Key, std::io::Error> {
+    pub fn read_key() -> Result<Key, io::Error> {
         loop {
             if let Some(key) = io::stdin().lock().keys().next() {
                 return key;

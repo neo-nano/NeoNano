@@ -1,6 +1,7 @@
 use std::env;
 use std::time::{Duration, Instant};
 
+use anyhow::{Error, Result};
 use termion::color;
 use termion::event::Key;
 use unicode_segmentation::UnicodeSegmentation;
@@ -56,7 +57,6 @@ impl Editor {
             if let Err(error) = self.refresh_screen() {
                 die(error);
             }
-
             if self.should_quit {
                 break;
             }
@@ -94,12 +94,12 @@ impl Editor {
     }
 
     fn draw_welcome_message(&self) -> Vec<String> {
-        let mut welcome_message = format!("Hecto Editor -- version {}", VERSION);
+        let mut welcome_message = format!("Hecto Editor -- version {VERSION}");
         let width = self.terminal.size().width as usize;
         let len = welcome_message.len();
         let padding = width.saturating_sub(len) / 2;
         let spaces = " ".repeat(padding);
-        welcome_message = format!("~{}{}", spaces, welcome_message);
+        welcome_message = format!("~{spaces}{welcome_message}");
         welcome_message.truncate(width);
         welcome_message
             .graphemes(true)
@@ -111,8 +111,7 @@ impl Editor {
         let width = self.terminal.size().width as usize;
         let start = self.offset.x;
         let end = self.offset.x.saturating_add(width);
-        let row = row.render(start, end);
-        row
+        row.render(start, end)
     }
 
     fn draw_rows(&self) {
@@ -140,7 +139,7 @@ impl Editor {
         }
     }
 
-    fn refresh_screen(&self) -> Result<(), std::io::Error> {
+    fn refresh_screen(&self) -> Result<()> {
         Terminal::cursor_hide();
         Terminal::cursor_position(&Position::default());
         if self.should_quit {
@@ -159,12 +158,13 @@ impl Editor {
         Terminal::flush()
     }
 
-    fn process_keypress(&mut self) -> Result<(), std::io::Error> {
+    fn process_keypress(&mut self) -> Result<()> {
         let pressed_key = Terminal::read_key()?;
         match pressed_key {
             Key::Char(c) => {
                 self.document.insert(&self.cursor_position, c);
                 self.move_cursor(Key::Right);
+                self.document.clear_floating();
             }
             Key::Ctrl('q') => {
                 if !self.document.is_dirty() {
@@ -182,18 +182,23 @@ impl Editor {
                     self.status_message = StatusMessage::from(unsaved_msg);
                 }
             }
-            Key::Ctrl('s') => self.save(),
+            Key::Ctrl('s') => {
+                self.save();
+                self.document.clear_floating();
+            }
             Key::Ctrl('f') => self.search(),
-            Key::Alt('m') => self.hover(),
+            Key::F(1) => self.hover(),
             Key::Delete => {
                 self.document.clear_floating();
                 self.document.delete(&self.cursor_position);
+                self.document.clear_floating();
             }
             Key::Backspace => {
                 if self.cursor_position.x > 0 || self.cursor_position.y > 0 {
                     self.move_cursor(Key::Left);
                     self.document.delete(&self.cursor_position);
                 }
+                self.document.clear_floating();
             }
             Key::Up
             | Key::Down
@@ -215,7 +220,7 @@ impl Editor {
         let Position { x, y } = self.cursor_position;
         let width = self.terminal.size().width as usize;
         let height = self.terminal.size().height as usize;
-        let mut offset = &mut self.offset;
+        let offset = &mut self.offset;
 
         if y < offset.y {
             offset.y = y;
@@ -226,7 +231,7 @@ impl Editor {
         if x < offset.x {
             offset.x = x;
         } else if x >= offset.x.saturating_add(width) {
-            offset.x = offset.x.saturating_sub(width).saturating_add(1);
+            offset.x = x.saturating_sub(width).saturating_add(1);
         }
     }
 
@@ -329,12 +334,12 @@ impl Editor {
             status.push_str(&" ".repeat(width.saturating_sub(len)));
         }
 
-        status = format!("{}{}", status, line_indicator);
+        status = format!("{status}{line_indicator}");
         status.truncate(width);
 
         Terminal::set_bg_color(STATUS_BG_COLOR);
         Terminal::set_fg_color(STATUS_FG_COLOR);
-        println!("{}\r", status);
+        println!("{status}\r");
         Terminal::reset_fg_color();
         Terminal::reset_bg_color();
     }
@@ -345,7 +350,7 @@ impl Editor {
         if Instant::now() - message.time < Duration::new(5, 0) {
             let mut text = message.text.clone();
             text.truncate(self.terminal.size().width as usize);
-            print!("{}", text);
+            print!("{text}");
         }
     }
 
@@ -366,7 +371,7 @@ impl Editor {
         }
     }
 
-    fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, std::io::Error>
+    fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>>
     where
         C: FnMut(&mut Self, Key, &String),
     {
@@ -450,7 +455,7 @@ impl Editor {
     }
 }
 
-fn die(e: std::io::Error) {
+fn die(e: Error) {
     Terminal::clear_screen();
     panic!("{}", e);
 }
